@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sort"
 	"tcp_to_http/internal/request"
 )
 
@@ -23,15 +24,28 @@ func main() {
 		fmt.Println("connection accepted")
 
 		go func(c net.Conn) {
+			defer c.Close()
 			req, err := request.RequestFromReader(c)
 			if err != nil {
 				log.Println("failed to read request: ", err)
+				return
 			}
 			fmt.Println("Request line:")
 			fmt.Printf("- Method: %s\n", req.RequestLine.Method)
 			fmt.Printf("- Target: %s\n", req.RequestLine.RequestTarget)
 			fmt.Printf("- Version: %s\n", req.RequestLine.HttpVersion)
-			c.Close()
+
+			fmt.Println("Headers:")
+			// Sort keys to ensure stable output ordering
+			keys := make([]string, 0, len(req.Headers))
+			for k := range req.Headers {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+
+			for _, k := range keys {
+				fmt.Printf("- %s: %s\n", k, req.Headers[k])
+			}
 		}(conn)
 	}
 }
