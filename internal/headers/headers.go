@@ -19,6 +19,14 @@ func isValidHeaderKeyChar(b byte) bool {
 		b == '\'' || b == '*' || b == '+' || b == '-' || b == '.' ||
 		b == '^' || b == '_' || b == '`' || b == '|' || b == '~'
 }
+
+func (h Headers) Get(key string) string {
+	val, ok := h[strings.ToLower(key)]
+	if !ok {
+		return ""
+	}
+	return val
+}
 func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	if len(data) == 0 {
 		return 0, false, nil

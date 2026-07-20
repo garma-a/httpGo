@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"strconv"
 	"strings"
 	"tcp_to_http/internal/headers"
 )
@@ -14,6 +15,7 @@ type state int
 const (
 	requestStateInitialized state = iota
 	requestStateParsingHeaders
+	requestStateParsingBody
 	requestStateDone
 )
 
@@ -21,6 +23,7 @@ type Request struct {
 	RequestLine RequestLine
 	Headers     headers.Headers
 	state       state
+	Body        []byte
 }
 
 type RequestLine struct {
@@ -83,10 +86,26 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 
 		if consumed > 0 {
 			if done {
-				r.state = requestStateDone
+				r.state = requestStateParsingBody
 			}
 		}
 		return consumed, nil
+	case requestStateParsingBody:
+		if r.Headers.Get("Content-Length") == "" {
+			r.state = requestStateDone
+			return 0, nil
+		}
+		contentLength, err := strconv.Atoi(r.Headers.Get("Content-Length"))
+		if err != nil {
+			return 0, errors.New("invalid Content-Length header")
+		}
+		r.Body = append(r.Body, data...)
+		if len(r.Body) > contentLength {
+			return 0, errors.New("body exceeds Content-Length")
+		} else if len(r.Body) == contentLength {
+			r.state = requestStateDone
+		}
+		return len(data), nil
 
 	case requestStateDone:
 		return 0, nil

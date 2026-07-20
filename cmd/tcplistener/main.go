@@ -16,6 +16,7 @@ func main() {
 	defer ln.Close()
 
 	fmt.Println("Listening on :42069...")
+
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -46,6 +47,7 @@ func main() {
 			for _, k := range keys {
 				fmt.Printf("- %s: %s\n", k, req.Headers[k])
 			}
+			fmt.Printf("Body: %s\n", string(req.Body))
 		}(conn)
 	}
 }
