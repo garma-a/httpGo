@@ -80,10 +80,11 @@ func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
 	req, err := request.RequestFromReader(conn)
 	if err != nil {
-		conn.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n"))
+		w := response.NewWriter(conn)
+		w.WriteStatusLine(response.StatusBadRequest)
+		w.WriteHeaders(response.GetDefaultHeaders(0))
 		return
 	}
 	writer := response.NewWriter(conn)
 	s.handler(writer, req)
-
 }

@@ -29,13 +29,7 @@ func (h Headers) Get(key string) string {
 }
 
 func (h Headers) Set(key, value string) {
-	lowerKey := strings.ToLower(key)
-	for k := range h {
-		if strings.ToLower(k) == lowerKey {
-			delete(h, k)
-		}
-	}
-	h[lowerKey] = value
+	h[strings.ToLower(key)] = value
 }
 func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	if len(data) == 0 {

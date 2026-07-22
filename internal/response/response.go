@@ -15,30 +15,27 @@ const (
 	StatusInternalServerError StatusCode = 500
 )
 
-func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
-	switch statusCode {
+func statusText(code StatusCode) string {
+	switch code {
 	case StatusOK:
-		_, err := fmt.Fprintf(w, "HTTP/1.1 %s OK\r\n", strconv.Itoa(int(statusCode)))
-		if err != nil {
-			return err
-		}
+		return "OK"
 	case StatusBadRequest:
-		_, err := fmt.Fprintf(w, "HTTP/1.1 %s Bad Request\r\n", strconv.Itoa(int(statusCode)))
-		if err != nil {
-			return err
-		}
+		return "Bad Request"
 	case StatusInternalServerError:
-		_, err := fmt.Fprintf(w, "HTTP/1.1 %s Internal Server Error\r\n", strconv.Itoa(int(statusCode)))
-		if err != nil {
-			return err
-		}
+		return "Internal Server Error"
 	default:
-		_, err := fmt.Fprintf(w, "HTTP/1.1 %s \r\n", strconv.Itoa(int(statusCode)))
-		if err != nil {
-			return err
-		}
+		return ""
 	}
-	return nil
+}
+
+func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
+	text := statusText(statusCode)
+	if text == "" {
+		_, err := fmt.Fprintf(w, "HTTP/1.1 %d \r\n", int(statusCode))
+		return err
+	}
+	_, err := fmt.Fprintf(w, "HTTP/1.1 %d %s\r\n", int(statusCode), text)
+	return err
 }
 func GetDefaultHeaders(contentLen int) headers.Headers {
 	return headers.Headers{
