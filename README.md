@@ -4,119 +4,93 @@
   <img src="imgs/logo.png" alt="httpGo Logo" width="500" />
 </p>
 
-`httpGo` is a low-level, high-performance TCP-to-HTTP request parser and server built from scratch in Go. Rather than relying on Go's built-in `net/http` package, `httpGo` reads raw TCP streams, manages dynamic memory buffers, and implements an RFC-compliant state machine parser to dissect HTTP request lines and headers.
+<p align="center">
+  <b>A low-level, high-performance TCP-to-HTTP server built entirely from scratch in Go.</b>
+</p>
+
+---
+
+## 🎬 Demo
+
+<p align="center">
+  <img src="imgs/demo.gif" alt="httpGo Server Demo" width="800" />
+</p>
 
 ---
 
 ## 🛠️ Features
 
-* **Concurrently Accepts TCP Connections**: Spawns independent goroutines to handle multiplexed connections on port `:42069`.
-* **Zero-Dependency HTTP Parser**: Reads raw socket bytes directly.
-* **HTTP Request Line Parsing**: Extracts the `Method`, `RequestTarget`, and `HttpVersion`.
-* **Advanced HTTP Header Parser**:
-  * **Incremental Streaming Support**: Safely parses headers line-by-line across arbitrary TCP chunk boundaries.
-  * **RFC-Compliant Token Validation**: Detects invalid characters (like `©` or leading whitespace) in header keys and rejects bad requests.
-  * **Case-Insensitive Normalization**: Canonicalizes header keys to lowercase (e.g., `User-Agent` becomes `user-agent`).
-  * **Multi-Value Header Merging**: Automatically combines duplicate header keys into a comma-separated list (e.g., merging multiple `Set-Cookie` headers into a single value, per RFC 9110).
+* **Custom HTTP Parser**: Zero-dependency parser that reads raw socket bytes directly, completely bypassing Go's built-in `net/http` server implementation.
+* **Concurrency**: Spawns independent goroutines to handle multiplexed connections on port `:42069`.
+* **Dynamic Memory Buffering**: Intelligently handles variable TCP chunk boundaries and expands buffer size automatically.
+* **Advanced Header Management**:
+  * Case-insensitive header normalization (e.g., `User-Agent` canonicalized to `user-agent`).
+  * Seamless multi-value header merging following RFC 9110 rules.
+* **HTTP Proxying**: Fully functioning reverse proxy to forward paths like `/httpbin/*` to external APIs (e.g., `https://httpbin.org`).
+* **Chunked Transfer Encoding & Trailers**: Fully supports rendering body data as `Transfer-Encoding: chunked` and sending trailing HTTP headers like `X-Content-SHA256`.
+* **Binary File Delivery**: Easily serves rich media, such as high-definition MP4 video files.
 
 ---
 
-## 🏗️ Code Concepts & Parser Architecture
+## 🏗️ Architecture
 
-### 1. The Parser State Machine
-To handle network streams that arrive in unpredictable chunk sizes, `httpGo` uses an internal state machine defined in the `request` package:
+### The Parser State Machine
+To efficiently process incoming network streams, `httpGo` employs a bespoke state machine:
 
-```go
-const (
-	requestStateInitialized state = iota // Waiting for/parsing Request Line
-	requestStateParsingHeaders          // Parsing individual HTTP headers
-	requestStateDone                    // Parsing complete
-)
-```
+1. **Initialization**: Awaiting the start of an HTTP request line.
+2. **Request Line Parsing**: Extracts the `Method`, `RequestTarget`, and `HttpVersion`.
+3. **Headers Parsing**: Sequentially digests headers, handling continuations and value normalization.
+4. **Body Parsing**: Utilizes `Content-Length` (if available) to pull the payload correctly before passing the generated `*Request` struct up to the application handlers.
 
-The parser cycles through these states in a loop, ensuring that it only parses what has been fully received.
-
-### 2. Dynamic Buffering & Byte Shifting
-Since TCP sends data in packets of variable sizes, the server starts with a small **8-byte buffer** to save memory. 
-If the buffer fills up before a full HTTP boundary (like `\r\n`) is reached, `httpGo`:
-1. **Doubles the buffer size** dynamically.
-2. Reads the next chunk from the socket.
-3. After parsing is successful, **shifts** the unparsed bytes back to the beginning of the buffer to free up space.
-
-```
-Buffer:
-+-------------------+-----------------------------+
-|  Parsed Request   |      Unparsed Headers       |
-+-------------------+-----------------------------+
-\______  ___________/
-       \/ (consumed bytes)
-       
-Shifting:
-+-----------------------------+-------------------+
-|      Unparsed Headers       |    Empty Space    |
-+-----------------------------+-------------------+
-```
-
-### 3. Case Insensitivity & Merging (RFC 9110)
-Standard HTTP allows header keys to be case-insensitive, and multiple lines of the same header key are merged into a comma-separated value:
-
-```http
-Set-Cookie: session=123\r\n
-SET-COOKIE: theme=dark\r\n
-```
-
-Is parsed and stored internally as:
-```go
-map[string]string{
-    "set-cookie": "session=123, theme=dark",
-}
-```
+### Zero-Copy-Like Byte Shifting
+Instead of creating massive allocations per request, the parser begins with an ultra-light **8-byte buffer**. If more bytes arrive before an HTTP boundary (like `\r\n`), it geometrically doubles the size. Once parsed, it *shifts* any remaining raw TCP bytes leftwards to minimize overhead and maximize throughput.
 
 ---
 
 ## 📂 Project Structure
 
-* **[cmd/tcplistener/main.go](file:///home/girgis/repo/learning/boot_dev/httpGo/cmd/tcplistener/main.go)**: Starts the TCP listener, accepts TCP connections, and hands them off to the request parser.
-* **[internal/request/request.go](file:///home/girgis/repo/learning/boot_dev/httpGo/internal/request/request.go)**: Manages buffering, byte shifting, and orchestrates request line and header parsing.
-* **[internal/headers/headers.go](file:///home/girgis/repo/learning/boot_dev/httpGo/internal/headers/headers.go)**: Handles individual header line token validation, parsing, lowercasing, and duplicate key merging.
+* **`cmd/httplistener/main.go`**: The entrypoint. Orchestrates route handling, proxy endpoints, binary streaming endpoints, and invokes the custom server.
+* **`internal/request/`**: The core state machine and byte management logic for streaming TCP payloads.
+* **`internal/headers/`**: Custom HTTP header structures, implementing robust parsing and duplicate header consolidation.
+* **`internal/response/`**: Custom Response Writer utilities for safely writing status lines, headers, chunked bodies, and trailers.
+* **`internal/server/`**: The TCP listener loop and worker dispatch mechanism.
 
 ---
 
-## 🚀 How to Run the Project
+## 🚀 Quick Start
 
-To start the TCP-to-HTTP server:
-
-```bash
-go run cmd/tcplistener/main.go
-```
-
-The server will start listening on port `:42069`:
-```
-Listening on :42069...
-```
-
-You can send standard HTTP requests using `curl` or `netcat` in another terminal:
+1. Start the HTTP listener server:
 
 ```bash
-curl http://localhost:42069/coffee -H "User-Agent: test-agent"
+go run cmd/httplistener/main.go
 ```
 
-The server console will output:
+The server will automatically bind and listen on port `:42069`.
+
+2. Make standard HTTP requests from any terminal:
+
+```bash
+curl -i http://localhost:42069/
 ```
-connection accepted
-Request line:
-- Method: GET
-- Target: /coffee
-- Version: 1.1
+
+3. Test out the proxy handler:
+
+```bash
+curl -i http://localhost:42069/httpbin/html
+```
+
+4. Stream a video file:
+
+```bash
+curl -i http://localhost:42069/video -o output.mp4
 ```
 
 ---
 
-## 🧪 How to Run Tests
+## 🧪 Testing
 
-The project has robust unit tests covering edge cases like malformed headers, invalid characters, multi-value headers, and different chunk sizes.
+The codebase includes robust, granular unit tests testing the limits of the buffer shifting algorithm, multi-value header edge cases, and unexpected TCP disconnections.
 
-Run all tests:
 ```bash
 go test -v ./...
 ```

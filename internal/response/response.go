@@ -75,3 +75,32 @@ func (w *Writer) WriteHeaders(headers headers.Headers) error {
 func (w *Writer) WriteBody(body []byte) (int, error) {
 	return w.w.Write(body)
 }
+
+func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	hexLen := strconv.FormatInt(int64(len(p)), 16)
+	if _, err := w.w.Write([]byte(hexLen + "\r\n")); err != nil {
+		return 0, err
+	}
+	n, err := w.w.Write(p)
+	if err != nil {
+		return n, err
+	}
+	if _, err := w.w.Write([]byte("\r\n")); err != nil {
+		return n, err
+	}
+	return n, nil
+}
+
+func (w *Writer) WriteChunkedBodyDone() (int, error) {
+	return w.w.Write([]byte("0\r\n\r\n"))
+}
+
+func (w *Writer) WriteTrailers(h headers.Headers) error {
+	if _, err := w.w.Write([]byte("0\r\n")); err != nil {
+		return err
+	}
+	return WriteHeaders(w.w, h)
+}
