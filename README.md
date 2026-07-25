@@ -91,6 +91,10 @@ curl -i http://localhost:42069/video -o output.mp4
 
 The codebase includes robust, granular unit tests testing the limits of the buffer shifting algorithm, multi-value header edge cases, and unexpected TCP disconnections.
 
+<p align="center">
+  <img src="imgs/tests.gif" alt="httpGo Unit Tests" width="800" />
+</p>
+
 ```bash
 go test -v ./...
 ```
